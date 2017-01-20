@@ -1,0 +1,11 @@
+1.data_load.R
+load data
+
+2.sta.R
+preliminary statistic
+
+3.gen_data_day.R
+generate view and pay data per day for each shop
+
+4.evaluate_day.R
+evaluate result
