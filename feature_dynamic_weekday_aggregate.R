@@ -30,7 +30,9 @@ his_pay <- function(his_day,nh){
   r <- his_day
   for(i in seq_len(nrow(his_day))){
     cat(sprintf('i:%.0f',i))
+    # find the first efficient day
     idx_j <- which(!is.na(his_day[i,]))[2]
+    # set all cell in result without efficient data to NA
     r[i,2:min(ncol(r),(idx_j+nh-1))] <- NA
     for(j in min(ncol(r),(idx_j + nh)):ncol(his_day)){
       cat(sprintf('\tj:%.0f\tidx:%s\n',j,names(his_day)[2]))
@@ -40,6 +42,7 @@ his_pay <- function(his_day,nh){
       if(len == 0){
         r[i,j] <- NA
       }else{
+        # exclude zero for test set
         idx_last_efficient <- max(which(tmp != 0))
         r[i,j] <- mean(tmp[max(1,(idx_last_efficient-nh + 1)):idx_last_efficient])
       }
@@ -50,11 +53,12 @@ his_pay <- function(his_day,nh){
   r
 }
 
-num_his <- c(1,4,12)
+# generate shop_pay for test
 shop_pay_cleartest <- subset(shop_pay,uni_time >= feature_start & uni_time < feature_end)
 shop_pay_cleartest$wday <- as.POSIXlt(shop_pay_cleartest$uni_time)$wday
 shop_pay_cleartest$value[shop_pay_cleartest$uni_time >= test_start] <- 0
 
+# calculate his_wday
 his_wday <- lapply(unique(shop_pay_cleartest$wday),function(x){
   shop_pay_wday <- subset(shop_pay_cleartest,wday == x)
   shop_pay_wday <- dcast(shop_pay_wday,shop_id ~ uni_time,value.var = 'value')
