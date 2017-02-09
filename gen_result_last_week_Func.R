@@ -16,7 +16,7 @@
 #
 
 # F1.extract data from shop_pay, recognize the missing data and replace them with efficient data
-extract_data <- function(shop_pay,k){
+extract_data <- function(shop_pay,k,test_start,teset_end){
   data_pred <- subset(shop_pay,uni_time >= (test_start - 86400*k) & uni_time < test_start)
   
   broken_shop <- dcast(shop_id~uni_time,data = data_pred,value.var = 'value')
@@ -58,8 +58,8 @@ fill_missing_data <- function(data_pred,k){
   list(data_pred_melt,data_pred_dcast)
 }
 
-# F3. volt limit for each shop to avoid too large or too small
-volt_limit <- function(data_pred_dcast,k,rate){
+# F3A. volt limit for each shop to set the value larger or less to the limit
+volt_limitA <- function(data_pred_dcast,k,rate){
   for(i in 1:nrow(data_pred_dcast)){
     ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
     limit_min <- mean(ori_value) - rate*sd(ori_value)
@@ -67,6 +67,26 @@ volt_limit <- function(data_pred_dcast,k,rate){
     ori_value[ori_value > limit_max] <- limit_max
     ori_value[ori_value < limit_min] <- limit_min
     data_pred_dcast[i,2:(k+1)] <- ori_value
+  }
+  data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')
+  names(data_pred) <- c('shop_id','uni_time','value')
+  data_pred$uni_time <- as.p(data_pred$uni_time)
+  data_pred
+}
+
+# F3B. volt limit for each shop to compress all value
+linMap <- function(x, from, to){
+  (x - min(x)) / max(x - min(x)) * (to - from) + from
+}
+  
+volt_limitB <- function(data_pred_dcast,k,rate){
+  for(i in 1:nrow(data_pred_dcast)){
+    ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
+    limit_min <- mean(ori_value) - rate*sd(ori_value)
+    limit_max <- mean(ori_value) + rate*sd(ori_value)
+    # ori_value[ori_value > limit_max] <- limit_max
+    # ori_value[ori_value < limit_min] <- limit_min
+    data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
   }
   data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')
   names(data_pred) <- c('shop_id','uni_time','value')
@@ -85,7 +105,7 @@ expand_data <- function(data_pred,k){
 }
 
 # F5. Add real data
-add_real <- function(data_pred){
+add_real <- function(data_pred,test_start,teset_end){
   data_pred <- subset(data_pred,uni_time >= test_start & uni_time < test_end)
   data_real <- subset(shop_pay,uni_time >= test_start & uni_time < test_end)
   data_comp <- merge(data_real,data_pred,by = c('shop_id','uni_time'))
@@ -97,7 +117,6 @@ add_real <- function(data_pred){
 # F6.Check measure of each shop,categary and etc.
 check_result <- function(out){
   out$shop_id <- factor(out$shop_id)
-  cat(sprintf('Error: %.4f\n',mean(out$ms)))
   # C1. aggresive of measure of each shop: mean,sd,max,min,max_day,min_day
   aggr_ms <- data.frame(shop_id = levels(out$shop_id),
                         mean = as.numeric(tapply(out$ms,out$shop_id,mean)),
