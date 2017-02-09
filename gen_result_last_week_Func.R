@@ -82,11 +82,13 @@ linMap <- function(x, from, to){
 volt_limitB <- function(data_pred_dcast,k,rate){
   for(i in 1:nrow(data_pred_dcast)){
     ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
-    limit_min <- mean(ori_value) - rate*sd(ori_value)
+    limit_min <- max(1,mean(ori_value) - rate*sd(ori_value))
     limit_max <- mean(ori_value) + rate*sd(ori_value)
     # ori_value[ori_value > limit_max] <- limit_max
     # ori_value[ori_value < limit_min] <- limit_min
-    data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
+    if(any(ori_value > limit_max) | any(ori_value < limit_min)){
+      data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
+    }
   }
   data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')
   names(data_pred) <- c('shop_id','uni_time','value')

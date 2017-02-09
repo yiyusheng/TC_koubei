@@ -22,7 +22,7 @@ load(file.path(dir_data,'shop_pay.Rda'))
 load(file.path(dir_data,'shop_info.Rda'))
 
 
-flag_gen <- 1;title <- '0209c.csv'
+flag_gen <- 1;title <- '0210a.csv'
 x <- ifelse(flag_gen == 1,test_end <- as.p('2016-11-15'),
             ifelse(flag_gen == 0,test_end <- as.p('2016-11-01'),test_end <- as.p('2016-11-01')))
 
@@ -44,6 +44,7 @@ main <- function(pa){
   if(nrow(data_comp) != 0){
     return(data_comp)
   }else{
+    data_pred$value[]
     data_pred$value <- round(data_pred$value*1.2)
     r <- gen_csv(data_pred,title)
     return(r)
