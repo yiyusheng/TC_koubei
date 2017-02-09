@@ -38,52 +38,43 @@ extract_data <- function(shop_pay,k){
 }
 
 # F2. fill missing data
-fill_missing_data <- function(data_pred){
+source('fill_na.R')
+fill_missing_data <- function(data_pred,k){
+  k1 <- k+1
   data_pred_dcast <- dcast(shop_id~uni_time,data = data_pred,value.var = 'value')
-  data_pred_dcast$num_na <- apply(data_pred_dcast[,2:8],1,function(x)sum(is.na(x)))
-  data_pred_dcast$mean <- apply(data_pred_dcast[,2:8],1,mean,na.rm = T)
-  data_pred_dcast$sd <- apply(data_pred_dcast[,2:8],1,sd,na.rm = T)
+  data_pred_dcast$num_na <- apply(data_pred_dcast[,2:k1],1,function(x)sum(is.na(x)))
+  data_pred_dcast$mean <- apply(data_pred_dcast[,2:k1],1,mean,na.rm = T)
+  data_pred_dcast$sd <- apply(data_pred_dcast[,2:k1],1,sd,na.rm = T)
   data_pred_dcast$sdrate <- data_pred_dcast$sd/data_pred_dcast$mean
   
-  if(test_end == as.p('2016-11-01')){
-    data_pred_dcast[352,6:7] <- 308
-    data_pred_dcast[363,7] <- 63
-    data_pred_dcast[459,4] <- 25
-    data_pred_dcast[547,3] <- 52
-    data_pred_dcast[632,8] <- 14
-    data_pred_dcast[722,4] <- 130
-    data_pred_dcast[1053,3:4] <- 19
-    data_pred_dcast[1464,2:5] <- 2
-    data_pred_dcast[1661,4:5] <- 469
-  }else if(test_end == as.p('2016-11-15')){
-    data_pred_dcast[5,3:4] <- (302+215)/2
-    data_pred_dcast[444,3:4] <- (76+290)/2
-    data_pred_dcast[470,3:4] <- (55+86)/2
-    data_pred_dcast[513,6] <- (167+85)/2
-    data_pred_dcast[547,3] <- (99+59)/2
-    data_pred_dcast[632,2] <- (12+36)/2
-    data_pred_dcast[659,2] <- (21+28)/2
-    data_pred_dcast[987,8] <- 37
-    data_pred_dcast[1163,5] <- (102+28)/2
-    data_pred_dcast[1185,3] <- (341+346)/2
-    data_pred_dcast[1486,2] <- 51
-    data_pred_dcast[1556,2:4] <- (200+195)/2
-    data_pred_dcast[1716,6:7] <- (151+190)/2
-    data_pred_dcast[1831,6:7] <- (661+679)/2
-    data_pred_dcast[1858,2:3] <- (51+57)/2
-    data_pred_dcast[1918,4] <- 6
-    data_pred_dcast[1959,2] <- (490+407)/2
-  }
-  data_pred_dcast[,1:8] <- round(data_pred_dcast[,1:8])
+  data_pred_dcast <- fill_with_mean_all(data_pred_dcast,k)
+  # data_pred_dcast <- fill_with_mannual(data_pred_dcast)
+  data_pred_dcast[,1:k1] <- round(data_pred_dcast[,1:k1])
   
   
-  data_pred_melt <- melt(data_pred_dcast[,1:8],id.vars = 'shop_id',variable.name = 'uni_time')
+  data_pred_melt <- melt(data_pred_dcast[,1:k1],id.vars = 'shop_id',variable.name = 'uni_time')
   data_pred_melt$uni_time <- as.p(data_pred_melt$uni_time)
   
   list(data_pred_melt,data_pred_dcast)
 }
 
-# F3. expand data to two weeks
+# F3. volt limit for each shop to avoid too large or too small
+volt_limit <- function(data_pred_dcast,k,rate){
+  for(i in 1:nrow(data_pred_dcast)){
+    ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
+    limit_min <- mean(ori_value) - rate*sd(ori_value)
+    limit_max <- mean(ori_value) + rate*sd(ori_value)
+    ori_value[ori_value > limit_max] <- limit_max
+    ori_value[ori_value < limit_min] <- limit_min
+    data_pred_dcast[i,2:(k+1)] <- ori_value
+  }
+  data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')
+  names(data_pred) <- c('shop_id','uni_time','value')
+  data_pred$uni_time <- as.p(data_pred$uni_time)
+  data_pred
+}
+
+# F4. expand data to two weeks
 expand_data <- function(data_pred,k){
   rp <- ceiling(14/k)
   data_pred_expand <- lapply(seq_len(rp),function(i){
@@ -93,21 +84,20 @@ expand_data <- function(data_pred,k){
   data_pred_expand <- do.call(rbind,data_pred_expand)
 }
 
-# F4. Add real data
+# F5. Add real data
 add_real <- function(data_pred){
   data_pred <- subset(data_pred,uni_time >= test_start & uni_time < test_end)
   data_real <- subset(shop_pay,uni_time >= test_start & uni_time < test_end)
   data_comp <- merge(data_real,data_pred,by = c('shop_id','uni_time'))
   names(data_comp) <- c('shop_id','uni_time','value','pred')
+  data_comp$ms <- abs(data_comp$value - data_comp$pred)/(data_comp$value + data_comp$pred)
   data_comp
 }
 
-# F5.Check measure of each shop,categary and etc.
+# F6.Check measure of each shop,categary and etc.
 check_result <- function(out){
   out$shop_id <- factor(out$shop_id)
-  out$ms <- abs(out$value - out$pred)/(out$value + out$pred)
   cat(sprintf('Error: %.4f\n',mean(out$ms)))
-  
   # C1. aggresive of measure of each shop: mean,sd,max,min,max_day,min_day
   aggr_ms <- data.frame(shop_id = levels(out$shop_id),
                         mean = as.numeric(tapply(out$ms,out$shop_id,mean)),
@@ -130,10 +120,10 @@ check_result <- function(out){
   # multiplot(p1,p2,p3,p4,p5,p6,p7,p8,cols = 4)
   
   # return(list(aggr_ms,list(p1,p2,p3,p4,p5,p6,p7,p8),out))
-  return(list(aggr_ms,out))
+  return(aggr_ms)
 }
 
-# F6. generate result
+# F7. generate result
 gen_csv <- function(data_pred,title){
   r7 <- dcast(shop_id~uni_time,data = data_pred,value.var = 'value')
   names(r7) <- c('shop_id',paste('day_',1:14,sep=''))
