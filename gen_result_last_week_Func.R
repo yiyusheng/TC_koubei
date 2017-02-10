@@ -76,7 +76,7 @@ volt_limitA <- function(data_pred_dcast,k,rate){
 
 # F3B. volt limit for each shop to compress all value
 linMap <- function(x, from, to){
-  (x - min(x)) / max(x - min(x)) * (to - from) + from
+  (x - mean(x)) / ((max(x) - min(x))/2) * ((to - from)/2) + mean(x)
 }
   
 volt_limitB <- function(data_pred_dcast,k,rate){
@@ -84,8 +84,6 @@ volt_limitB <- function(data_pred_dcast,k,rate){
     ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
     limit_min <- max(1,mean(ori_value) - rate*sd(ori_value))
     limit_max <- mean(ori_value) + rate*sd(ori_value)
-    # ori_value[ori_value > limit_max] <- limit_max
-    # ori_value[ori_value < limit_min] <- limit_min
     if(any(ori_value > limit_max) | any(ori_value < limit_min)){
       data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
     }
@@ -152,4 +150,3 @@ gen_csv <- function(data_pred,title){
   write.table(r7,file = file.path(dir_data,'result',title),quote = F,sep=',',row.names = F,col.names = F)
   return(r7)
 }
-
