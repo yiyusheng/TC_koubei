@@ -13,3 +13,22 @@ r3 <- data.frame(date = as.POSIXct(r1,tz = 'UTC',origin = '1970-01-01'),error = 
 ggplot(r3,aes(x = date,y = error)) + geom_line() + geom_point()
 readme <- "It's a data.frame including date(test_start) and error. I use different test_start"
 save(r3,readme,file = file.path(dir_data,'test_start.Rda'))
+
+linMap <- function(x, from, to){
+  mx <- mean(x)
+  idx <- x > mx
+  x[idx] <- (x[idx] - mean(x[idx])) / (max(x[idx]) - mean(x[idx])) * ((to - from)/2) + mean(x[idx])
+  x[idx] <- (x[idx] - mean(x[idx])) / (mean(x[idx]) - min(x[idx])) * ((to - from)/2) + mean(x[idx])
+  x
+}
+
+pa <- expand.grid(1:10,seq(0.7,1.3,0.05));
+r <- mapply(main,pa[,1],pa[,2])
+require(doParallel)
+idx <- seq_len(nrow(pa))
+ck <- makeCluster(min(floor(detectCores()*0.9),length(idx)),outfile = '')
+registerDoParallel(ck)
+r <- foreach(i = idx,.verbose = T,.packages = 'reshape2') %dopar% main(pa[i,1],pa[i,2])
+stopCluster(ck)
+r1 <- data.frame(matrix(unlist(r),byrow = T,nrow = nrow(pa)))
+r1 <- dcast(X1~X2,data = r1,value.var = 'X3')

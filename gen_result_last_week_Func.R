@@ -47,6 +47,7 @@ fill_missing_data <- function(data_pred,k){
   data_pred_dcast$sd <- apply(data_pred_dcast[,2:k1],1,sd,na.rm = T)
   data_pred_dcast$sdrate <- data_pred_dcast$sd/data_pred_dcast$mean
   
+  data_na <- is.na(data_pred_dcast)
   data_pred_dcast <- fill_with_mean_all(data_pred_dcast,k)
   # data_pred_dcast <- fill_with_mannual(data_pred_dcast)
   data_pred_dcast[,1:k1] <- round(data_pred_dcast[,1:k1])
@@ -55,11 +56,11 @@ fill_missing_data <- function(data_pred,k){
   data_pred_melt <- melt(data_pred_dcast[,1:k1],id.vars = 'shop_id',variable.name = 'uni_time')
   data_pred_melt$uni_time <- as.p(data_pred_melt$uni_time)
   
-  list(data_pred_melt,data_pred_dcast)
+  list(data_pred_melt,data_pred_dcast,data_na)
 }
 
 # F3A. volt limit for each shop to set the value larger or less to the limit
-volt_limitA <- function(data_pred_dcast,k,rate){
+smp_tuningA <- function(data_pred_dcast,k,rate){
   for(i in 1:nrow(data_pred_dcast)){
     ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
     limit_min <- mean(ori_value) - rate*sd(ori_value)
@@ -79,11 +80,14 @@ linMap <- function(x, from, to){
   (x - mean(x)) / ((max(x) - min(x))/2) * ((to - from)/2) + mean(x)
 }
   
-volt_limitB <- function(data_pred_dcast,k,rate){
+smp_tuningB <- function(data_pred_dcast,data_na,k,volt_limit_weight){
   for(i in 1:nrow(data_pred_dcast)){
     ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
-    limit_min <- max(1,mean(ori_value) - rate*sd(ori_value))
-    limit_max <- mean(ori_value) + rate*sd(ori_value)
+    meanD <- mean(ori_value[!data_na[i,2:(k+1)]])
+    sdD <- sd(ori_value[!data_na[i,2:(k+1)]])
+    
+    limit_min <- max(1,meanD - volt_limit_weight*sdD)
+    limit_max <- meanD + volt_limit_weight*sdD
     if(any(ori_value > limit_max) | any(ori_value < limit_min)){
       data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
     }
@@ -91,6 +95,48 @@ volt_limitB <- function(data_pred_dcast,k,rate){
   data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')
   names(data_pred) <- c('shop_id','uni_time','value')
   data_pred$uni_time <- as.p(data_pred$uni_time)
+  data_pred
+}
+
+# F3C. tuning value of sample based on last k samples' mean and sd including itself
+gen_smp_aggra <- function(shop_pay,test_start,k){
+  shop_pay_train <- subset(shop_pay,uni_time < test_start)
+  min_date <- min(shop_pay_train$uni_time)
+  cut_date <- seq.POSIXt(test_start,min_date,by = -86400*k)
+  shop_pay_train$datecut <- cut.POSIXt(shop_pay_train$uni_time,cut_date)
+  
+  split_shop_pay <- split(shop_pay_train,shop_pay_train$shop_id)
+  smp_aggra <- lapply(split_shop_pay,function(df){
+    r <- tapply(df$value,factor(df$datecut),function(x)list(mean(x),sd(x)))
+    data.frame(uni_time = names(r),
+               smp_mean = sapply(r,'[[',1),
+               smp_sd = sapply(r,'[[',2))
+  })
+}
+
+
+smp_tuningC <- function(data_pred_dcast,smp_aggra,
+                        k,volt_limit_weight,last_k){
+  for(i in 1:nrow(data_pred_dcast)){
+    ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
+    len_aggr <- nrow(smp_aggra[[i]])
+    
+    data_mean <- smp_aggra[[i]]$smp_mean;data_mean <- data_mean[!is.na(data_mean)]
+    data_mean <- mean(data_mean[max(1,(length(data_mean)-last_k+1)):length(data_mean)],na.rm = T)
+    data_sd <- smp_aggra[[i]]$smp_sd;data_sd <- data_sd[!is.na(data_sd)]
+    data_sd <- mean(data_sd[max(1,(length(data_sd)-last_k+1)):length(data_sd)],na.rm = T)
+    
+    limit_min <- max(1,data_mean - volt_limit_weight*data_sd)
+    limit_max <- data_mean + volt_limit_weight*data_sd
+    # cat(i)
+    if(any(ori_value > limit_max) | any(ori_value < limit_min)){
+      data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
+    }
+  }
+  data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')
+  names(data_pred) <- c('shop_id','uni_time','value')
+  data_pred$uni_time <- as.p(data_pred$uni_time)
+  data_pred$value <- abs(data_pred$value)
   data_pred
 }
 
@@ -114,35 +160,7 @@ add_real <- function(data_pred,test_start,teset_end){
   data_comp
 }
 
-# F6.Check measure of each shop,categary and etc.
-check_result <- function(out){
-  out$shop_id <- factor(out$shop_id)
-  # C1. aggresive of measure of each shop: mean,sd,max,min,max_day,min_day
-  aggr_ms <- data.frame(shop_id = levels(out$shop_id),
-                        mean = as.numeric(tapply(out$ms,out$shop_id,mean)),
-                        sd = as.numeric(tapply(out$ms,out$shop_id,sd)),
-                        max = as.numeric(tapply(out$ms,out$shop_id,max)),
-                        median = as.numeric(tapply(out$ms,out$shop_id,median)),
-                        min = as.numeric(tapply(out$ms,out$shop_id,min)),
-                        max_d = as.numeric(tapply(out$ms,out$shop_id,which.max)),
-                        min_d = as.numeric(tapply(out$ms,out$shop_id,which.min)))
-  
-  # C2. Plot and return
-  p1 <- ggplot(aggr_ms,aes(x = mean)) + geom_histogram(bins = 100) + ggtitle('mean')
-  p2 <- ggplot(aggr_ms,aes(x = sd)) + geom_histogram(bins = 100) + ggtitle('sd')
-  p3 <- ggplot(aggr_ms,aes(x = mean,y = sd)) + geom_point() + ggtitle('mean-sd')
-  p4 <- ggplot(aggr_ms,aes(x = max)) + geom_histogram(bins = 100) + ggtitle('max')
-  p5 <- ggplot(aggr_ms,aes(x = median)) + geom_histogram(bins = 100) + ggtitle('median')
-  p6 <- ggplot(aggr_ms,aes(x = min)) + geom_histogram(bins = 100) + ggtitle('min')
-  p7 <- ggplot(aggr_ms,aes(x = max_d)) + geom_histogram(bins = 100) + ggtitle('max_d')
-  p8 <- ggplot(aggr_ms,aes(x = min_d)) + geom_histogram(bins = 100) + ggtitle('min_d')
-  # multiplot(p1,p2,p3,p4,p5,p6,p7,p8,cols = 4)
-  
-  # return(list(aggr_ms,list(p1,p2,p3,p4,p5,p6,p7,p8),out))
-  return(aggr_ms)
-}
-
-# F7. generate result
+# F6. generate result
 gen_csv <- function(data_pred,title){
   r7 <- dcast(shop_id~uni_time,data = data_pred,value.var = 'value')
   names(r7) <- c('shop_id',paste('day_',1:14,sep=''))
