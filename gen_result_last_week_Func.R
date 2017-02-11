@@ -80,16 +80,26 @@ linMap <- function(x, from, to){
   (x - mean(x)) / ((max(x) - min(x))/2) * ((to - from)/2) + mean(x)
 }
   
-smp_tuningB <- function(data_pred_dcast,data_na,k,volt_limit_weight){
+smp_tuningB <- function(data_pred_dcast,data_na,k,volt_limit_weight,volt_limit_set = NULL){
   for(i in 1:nrow(data_pred_dcast)){
     ori_value <- as.numeric(data_pred_dcast[i,2:(k+1)])
     meanD <- mean(ori_value[!data_na[i,2:(k+1)]])
     sdD <- sd(ori_value[!data_na[i,2:(k+1)]])
+    if(is.na(sdD))next
     
-    limit_min <- max(1,meanD - volt_limit_weight*sdD)
-    limit_max <- meanD + volt_limit_weight*sdD
+    if(!is.null(volt_limit_set)){
+      limit_min <- max(1,meanD - volt_limit_set[i]*sdD)
+      limit_max <- meanD + volt_limit_set[i]*sdD
+    }else{
+      limit_min <- max(1,meanD - volt_limit_weight*sdD)
+      limit_max <- meanD + volt_limit_weight*sdD
+    }
+    # cat(sprintf('%d\n',i))
     if(any(ori_value > limit_max) | any(ori_value < limit_min)){
-      data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
+      tmp <- linMap(ori_value,limit_min,limit_max)
+      if(all(tmp > 0)){
+        data_pred_dcast[i,2:(k+1)] <- linMap(ori_value,limit_min,limit_max)
+      }
     }
   }
   data_pred <- melt(data_pred_dcast[,1:(k+1)],id.vars = 'shop_id')

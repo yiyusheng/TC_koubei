@@ -32,3 +32,21 @@ r <- foreach(i = idx,.verbose = T,.packages = 'reshape2') %dopar% main(pa[i,1],p
 stopCluster(ck)
 r1 <- data.frame(matrix(unlist(r),byrow = T,nrow = nrow(pa)))
 r1 <- dcast(X1~X2,data = r1,value.var = 'X3')
+
+# generate volt_limit_set
+data_comp$shop_id <- factor(data_comp$shop_id)
+aggr_ms <- data.frame(shop_id = levels(data_comp$shop_id),
+                      mean = as.numeric(tapply(data_comp$ms,data_comp$shop_id,mean)))
+aggr_ms$pa <- pa
+return(aggr_ms)
+
+r <- lapply(seq(0.01,2.3,0.01),main)
+r1 <- do.call(rbind,r)
+r2 <- dcast(shop_id~pa,data = r1,value.var = 'mean')
+r2$shop_id <- fct2num(r2$shop_id)
+r3 <- data.frame(shop_id = r2$shop_id,
+                 vt = seq(0.01,3,0.01)[apply(r2,1,which.min) - 1])
+r3 <- rbind(r3,c(1824,1))
+r3 <- r3[order(r3$shop_id),]
+volt_limit_set <- r3$vt
+save(volt_limit_set,file = file.path(dir_data,'volt_limit_set.Rda'))
