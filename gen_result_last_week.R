@@ -25,7 +25,7 @@ load(file.path(dir_data,'smp_aggra.Rda')) #smp_aggra <- gen_smp_aggra(shop_pay,t
 # load(file.path(dir_data,'volt_limit_set.Rda'))
 
 flag_gen <- 1 #If generate the result
-title <- '0211c.csv'  #file title
+title <- '0212a.csv'  #file title
 k <- 7  #days to extract as samples
 volt_limit_weight <- 1.05
 active_weight <- 1.1
@@ -55,7 +55,8 @@ main <- function(pa){
     return(data_comp)
   }else{
     data_pred$value[data_pred$uni_time == as.p('2016-11-11')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-11')]*2
-    data_pred$value <- round(data_pred$value)
+    data_pred$value[data_pred$uni_time == as.p('2016-11-10')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-10')]*1.1
+    data_pred$value[data_pred$uni_time == as.p('2016-11-12')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-11')]*1.1
     r <- gen_csv(data_pred,title)
     cat(sprintf('Length:%d\tAll positive:%s\tAll numeric:%s',nrow(r),all(r >= 0),all(!is.na(r))))
     return(r)

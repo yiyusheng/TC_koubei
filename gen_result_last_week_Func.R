@@ -172,6 +172,7 @@ add_real <- function(data_pred,test_start,teset_end){
 
 # F6. generate result
 gen_csv <- function(data_pred,title){
+  data_pred$value <- round(data_pred$value)
   r7 <- dcast(shop_id~uni_time,data = data_pred,value.var = 'value')
   names(r7) <- c('shop_id',paste('day_',1:14,sep=''))
   r7 <- r7[order(r7$shop_id),]
