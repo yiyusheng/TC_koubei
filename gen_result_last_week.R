@@ -25,10 +25,10 @@ load(file.path(dir_data,'smp_aggra.Rda')) #smp_aggra <- gen_smp_aggra(shop_pay,t
 # load(file.path(dir_data,'volt_limit_set.Rda'))
 
 flag_gen <- 1 #If generate the result
-title <- '0212a.csv'  #file title
+title <- '0212b.csv'  #file title
 k <- 7  #days to extract as samples
 volt_limit_weight <- 1.05
-active_weight <- 1.1
+active_weight <- 1.15
 last_k <- 1 #number of period used to adjust result
 x <- ifelse(flag_gen == 1,test_end <- as.p('2016-11-15'),
             ifelse(flag_gen == 0,test_end <- as.p('2016-11-01'),test_end <- as.p('2016-10-31')))
@@ -54,9 +54,9 @@ main <- function(pa){
     return(aggr_ms)
     return(data_comp)
   }else{
-    data_pred$value[data_pred$uni_time == as.p('2016-11-11')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-11')]*2
-    data_pred$value[data_pred$uni_time == as.p('2016-11-10')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-10')]*1.1
-    data_pred$value[data_pred$uni_time == as.p('2016-11-12')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-11')]*1.1
+    data_pred$value[data_pred$uni_time == as.p('2016-11-11')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-11')]*active_weight
+    data_pred$value[data_pred$uni_time == as.p('2016-11-10')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-10')]*active_weight
+    data_pred$value[data_pred$uni_time == as.p('2016-11-12')] <- data_pred$value[data_pred$uni_time == as.p('2016-11-11')]*active_weight
     r <- gen_csv(data_pred,title)
     cat(sprintf('Length:%d\tAll positive:%s\tAll numeric:%s',nrow(r),all(r >= 0),all(!is.na(r))))
     return(r)
@@ -78,4 +78,4 @@ r <- main(1.05)
 # r3 <- r3[order(r3$shop_id),]
 # volt_limit_set <- r3$vt
 # save(r2,file = file.path(dir_data,'volt_limit_set.Rda'))
-
+# x <- lapply(1:2000,plot_week_aggra)
