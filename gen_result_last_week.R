@@ -21,10 +21,11 @@ source('gen_result_last_week_Func.R')
 source('base.R')
 load(file.path(dir_data,'shop_pay.Rda'))
 load(file.path(dir_data,'shop_info.Rda'))
-load(file.path(dir_data,'smp_aggra.Rda')) #smp_aggra <- gen_smp_aggra(shop_pay,test_start,k)
+load(file.path(dir_data,'smp_aggra.Rda')) 
+require(forecast)
 # load(file.path(dir_data,'volt_limit_set.Rda'))
 
-flag_gen <- 1 #If generate the result
+flag_gen <- 0 #If generate the result
 title <- '0212c.csv'  #file title
 k <- 7  #days to extract as samples
 volt_limit_weight <- 1.05

@@ -116,9 +116,12 @@ gen_smp_aggra <- function(shop_pay,test_start,k){
   shop_pay_train$datecut <- cut.POSIXt(shop_pay_train$uni_time,cut_date)
   
   split_shop_pay <- split(shop_pay_train,shop_pay_train$shop_id)
-  smp_aggra <- lapply(split_shop_pay,function(df){
+  smp_aggra <- lapply(1:length(split_shop_pay),function(i){
+    df <- split_shop_pay[[i]]
+    shop_id <- names(split_shop_pay)[i]
     r <- tapply(df$value,factor(df$datecut),function(x)list(mean(x),sd(x)))
-    data.frame(uni_time = names(r),
+    data.frame(shop_id = shop_id,
+               uni_time = as.p(names(r)),
                smp_mean = sapply(r,'[[',1),
                smp_sd = sapply(r,'[[',2))
   })
